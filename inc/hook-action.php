@@ -14,8 +14,8 @@ use Wikimedia\CSS\Parser\Parser;
 use Wikimedia\CSS\Sanitizer\StylesheetSanitizer;
 use Wikimedia\CSS\Util;
 
-class Hook_Action {
-
+class Hook_Action
+{
     /**
      * @var Singleton The reference the *Singleton* instance of this class
      */
@@ -26,7 +26,8 @@ class Hook_Action {
      *
      * @return void
      */
-    public function init() {
+    public function init()
+    {
         add_action('elementor/element/common/_section_responsive/after_section_end', [$this, 'register_controls'], 10, 2);
         add_action('elementor/element/section/_section_responsive/after_section_end', [$this, 'register_controls'], 10, 2);
         add_action('elementor/element/column/_section_responsive/after_section_end', [$this, 'register_controls'], 10, 2);
@@ -46,11 +47,12 @@ class Hook_Action {
      * @param [type] $section_id
      * @return void
      */
-    public function register_controls(Controls_Stack $element, $section_id) {
-
+    public function register_controls(Controls_Stack $element, $section_id)
+    {
         if (!current_user_can('edit_pages') && !current_user_can('unfiltered_html')) {
             return;
         }
+
 
         $element->start_controls_section(
             '_custom_css_f_ele',
@@ -60,97 +62,90 @@ class Hook_Action {
             ]
         );
 
-        $element->start_controls_tabs(
-            'style_tabs'
-        );
+        $element->start_controls_tabs('style_tabs');
 
-        $element->start_controls_tab(
-            '_custom_css_desktop',
-            [
-                'label' => '<span class="eicon-device-desktop" title="' . esc_html__('Desktop', 'custom-css-for-elementor') . '"></span>',
-            ]
-        );
+        $results = [];  // Initialize an empty array to store the result
 
-        $element->add_control(
-            '_custom_css_f_ele_title_desktop',
-            [
-                'label' => esc_html__('Custom CSS', 'custom-css-for-elementor'),
-                'type' => Controls_Manager::HEADING,
-            ]
-        );
+        // Get active breakpoints from Elementor
+        $breakpoints = \Elementor\Plugin::$instance->breakpoints->get_active_breakpoints();
 
-        $element->add_control(
-            '_custom_css_f_ele_css_desktop',
-            [
-                'label' => esc_html__('Custom CSS', 'custom-css-for-elementor'),
-                'type' => Controls_Manager::CODE,
-                'language' => 'css',
-                'render_type' => 'ui',
-                'show_label' => false,
-                'separator' => 'none',
-            ]
-        );
+        foreach ($breakpoints as $breakpoint_key => $breakpoint) {
+            // Create an associative array for each breakpoint
+            $result = [
+                'value' => $breakpoint->get_value(),
+                'label' => $breakpoint->get_label(),
+                'enabled' => $breakpoint->is_enabled(),
+                'direction' => $breakpoint->get_direction(),
+                'icon' => \Elementor\Plugin::$instance->breakpoints->get_responsive_icons_classes_map($breakpoint->get_name())
+            ];
 
-        $element->end_controls_tab();
+            // Push the associative array to the results array
+            $results[] = $result;
+        }
 
-        $element->start_controls_tab(
-            '_custom_css_tablet',
-            [
-                'label' => '<span class="eicon-device-tablet" title="' . esc_html__('Tablet', 'custom-css-for-elementor') . '"></span>',
-            ]
-        );
+        $desktop_min = \Elementor\Plugin::$instance->breakpoints->get_desktop_min_point();
 
-        $element->add_control(
-            '_custom_css_f_ele_title_tablet',
-            [
-                'label' => esc_html__('Custom CSS (Tablet)', 'custom-css-for-elementor'),
-                'type' => Controls_Manager::HEADING,
-            ]
-        );
+        $desktop = [
+            'value' => $desktop_min,
+            'label' => 'desktop',
+            'enabled' => 1,
+            'direction' => "min",
+            'icon' => \Elementor\Plugin::$instance->breakpoints->get_responsive_icons_classes_map("desktop")
+        ];
 
-        $element->add_control(
-            '_custom_css_f_ele_css_tablet',
-            [
-                'type' => Controls_Manager::CODE,
-                'label' => esc_html__('Custom CSS (Tablet)', 'custom-css-for-elementor'),
-                'language' => 'css',
-                'render_type' => 'ui',
-                'show_label' => false,
-                'separator' => 'none',
-            ]
-        );
+        // Add the desktop breakpoint to the results array
+        $results[] = $desktop;
 
-        $element->end_controls_tab();
+        // Reverse the order of the results array
+        $results = array_reverse($results);
 
+        // Iterate over the results array and create controls for each device
+        foreach ($results as $result) {
+            $device_key = strtolower($result['label']);  // Use label as device key, converted to lowercase
+            $device_label = ucfirst($result['label']);  // Capitalize the first letter of the label
 
-        $element->start_controls_tab(
-            '_custom_css_mobile',
-            [
-                'label' => '<span class="eicon-device-mobile" title="' . esc_html__('Mobile', 'custom-css-for-elementor') . '"></span>',
-            ]
-        );
+            $key_css = preg_replace('/\s+/', '_', $device_key);
 
-        $element->add_control(
-            '_custom_css_f_ele_title_mobile',
-            [
-                'label' => esc_html__('Custom CSS (Mobile)', 'custom-css-for-elementor'),
-                'type' => Controls_Manager::HEADING,
-            ]
-        );
+            $element->start_controls_tab(
+                '_custom_css_' . $key_css,
+                [
+                    'label' => '<span class="eicon-device-' . $device_key . '" title="' . esc_html__($device_label, 'custom-css-for-elementor') . '"></span>',
+                ]
+            );
 
-        $element->add_control(
-            '_custom_css_f_ele_css_mobile',
-            [
-                'type' => Controls_Manager::CODE,
-                'label' => esc_html__('Custom CSS (Mobile)', 'custom-css-for-elementor'),
-                'language' => 'css',
-                'render_type' => 'ui',
-                'show_label' => false,
-                'separator' => 'none',
-            ]
-        );
+            $element->add_control(
+                '_custom_css_f_ele_title_' . $key_css,
+                [
+                    'label' => esc_html__('Custom CSS (' . $device_label . ') ('  . $result["direction"] . ": " . $result["value"] . "px)", 'custom-css-for-elementor'),
+                    'type' => Controls_Manager::HEADING,
+                ]
+            );
 
-        $element->end_controls_tab();
+            // Add input control for device value
+            $element->add_control(
+                '_custom_css_f_ele_value_' . $key_css,
+                [
+                    'label' => esc_html__('Device Value (px)', 'custom-css-for-elementor'),
+                    'type' => Controls_Manager::NUMBER,
+                    'default' => $result['value'],
+                    'description' => esc_html__('Set the device value in pixels.', 'custom-css-for-elementor'),
+                ]
+            );
+
+            $element->add_control(
+                '_custom_css_f_ele_css_' . $key_css,
+                [
+                    'type' => Controls_Manager::CODE,
+                    'label' => esc_html__('Custom CSS (' . $device_label . ')', 'custom-css-for-elementor'),
+                    'language' => 'css',
+                    'render_type' => 'ui',
+                    'show_label' => false,
+                    'separator' => 'none',
+                ]
+            );
+
+            $element->end_controls_tab();
+        }
         $element->end_controls_tabs();
 
         $element->add_control(
@@ -172,6 +167,7 @@ class Hook_Action {
         );
 
         $element->end_controls_section();
+
     }
 
     /**
@@ -181,7 +177,8 @@ class Hook_Action {
      * @param [type] $element
      * @return void
      */
-    public function add_post_css($post_css, $element) {
+    public function add_post_css($post_css, $element)
+    {
         if ($post_css instanceof Dynamic_CSS) {
             return;
         }
@@ -199,7 +196,8 @@ class Hook_Action {
      * @param [type] $post_css
      * @return void
      */
-    public function add_page_settings_css($post_css) {
+    public function add_page_settings_css($post_css)
+    {
 
         $document = Elementor_Plugin::instance()->documents->get($post_css->get_post_id());
 
@@ -216,29 +214,69 @@ class Hook_Action {
      * @param [type] $raw_css
      * @return void
      */
-    public function parse_css_to_remove_injecting_code($element_settings, $unique_selector) {
+    public function parse_css_to_remove_injecting_code($element_settings, $unique_selector)
+    {
 
         $custom_css = '';
 
-        if (empty($element_settings['_custom_css_f_ele_css_desktop']) && empty($element_settings['_custom_css_f_ele_css_tablet']) && empty($element_settings['_custom_css_f_ele_css_mobile'])) {
-            return;
+        // Get active breakpoints from Elementor
+        $breakpoints = \Elementor\Plugin::$instance->breakpoints->get_active_breakpoints();
+
+        // Define default desktop breakpoint
+        $devices = [
+            'desktop' => [
+                'media' => '',
+                'setting' => '_custom_css_f_ele_css_desktop',
+            ]
+        ];
+
+        // Add breakpoints to the devices array
+        foreach ($breakpoints as $breakpoint_key => $breakpoint) {
+            // Add breakpoint settings
+            $media_query = " @media (max-width: {$breakpoint->get_value()}px) { ";
+            $device_key = strtolower($breakpoint->get_label());
+            $key_css = preg_replace('/\s+/', '_', $device_key);
+            $devices[$breakpoint_key] = [
+                'media' => $media_query,
+                'setting' => '_custom_css_f_ele_css_' . $key_css,
+                'value' => $breakpoint->get_value()
+
+            ];
         }
 
-        $custom_css_desktop = trim($element_settings['_custom_css_f_ele_css_desktop']);
-        $custom_css_tablet = trim($element_settings['_custom_css_f_ele_css_tablet']);
-        $custom_css_mobile = trim($element_settings['_custom_css_f_ele_css_mobile']);
+        // Extract the 'desktop' element
+        $desktop = $devices['desktop'];
+        unset($devices['desktop']);
 
-        if (empty($custom_css_desktop) && empty($custom_css_tablet) && empty($custom_css_mobile)) {
-            return;
+        // Sort the remaining devices by value in descending order
+        usort($devices, function ($a, $b) {
+            return $b['value'] - $a['value'];
+        });
+
+        error_log(print_r($element_settings, true));
+        // Prepend the 'desktop' element
+        $sorted_devices = ['desktop' => $desktop] + $devices;
+
+
+
+        $custom_css_parts = [];
+
+        // Loop through each device and check for custom CSS
+        foreach ($sorted_devices as $device => $data) {
+            if (!empty($element_settings[$data['setting']])) {
+                $css_code = trim($element_settings[$data['setting']]);
+                if (!empty($css_code)) {
+                    $custom_css_parts[] = $data['media'] . $css_code . ($device != 'desktop' ? ' }' : '');
+                }
+            }
         }
 
-        $custom_css .= ((!empty($custom_css_desktop)) ? $custom_css_desktop : "");
-        $custom_css .= ((!empty($custom_css_tablet)) ? " @media (max-width: 768px) { " . $custom_css_tablet . "}" : "");
-        $custom_css .= ((!empty($custom_css_mobile)) ? " @media (max-width: 425px) { " . $custom_css_mobile . "}" : "");
-
-        if (empty($custom_css)) {
+        if (empty($custom_css_parts)) {
             return;
         }
+        // Combine all parts of custom CSS
+        $custom_css = implode('', $custom_css_parts);
+
 
         $custom_css = str_replace('selector', $unique_selector, $custom_css);
 
@@ -253,11 +291,13 @@ class Hook_Action {
         return $minified_css;
     }
 
-    public function get_script_depends() {
+    public function get_script_depends()
+    {
         return ['editor-css-script'];
     }
 
-    public function add_custom_css_for_editor() {
+    public function add_custom_css_for_editor()
+    {
         wp_enqueue_script(
             'purify',
             CUSTOM_CSS_FELE_PLUGIN_URL . 'assets/js/purify.min.js',
@@ -288,7 +328,8 @@ class Hook_Action {
      *
      * @return Singleton The *Singleton* instance.
      */
-    public static function instance() {
+    public static function instance()
+    {
         if (null === self::$instance) {
             self::$instance = new self();
         }
